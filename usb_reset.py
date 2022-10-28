@@ -1,11 +1,9 @@
 #! /usr/bin/env python3
 #  -*- coding: utf-8 -*-
 #
-# This file is part of ofunctions package
 
 """
-Function decorators for threading and antiflooding
-Use with @threaded
+usb reset devices & reinit (power cycle) hubs (ports)
 
 Versioning semantics:
     Major version: backward compatibility breaking changes
@@ -16,11 +14,12 @@ Versioning semantics:
 
 __intname__ = "usb_resetter"
 __author__ = "Orsiris de Jong"
-__copyright__ = "Copyright (C) 2022 Orsiris de Jong"
+__copyright__ = "Copyright (C) 2022 Orsiris de Jong - NetInvent SASU"
 __description__ = "USB resetter allows to reset all USB controllers or a single USB device, also emulates lsusb"
 __licence__ = "BSD 3 Clause"
-__version__ = "1.1.0"
-__build__ = "2022102701"
+__version__ = "1.2.0"
+__build__ = "2022102801"
+__url__ = "https://github.com/netinvent/usb_resetter"
 __compat__ = "python2.7+"
 
 
@@ -30,12 +29,94 @@ import re
 import os
 import sys
 import glob
-from argparse import ArgumentParser
+import argparse
 from collections import namedtuple
 
 
-# Equivalent of the _IO('U', 20) constant in the linux kernel.
-USBDEVFS_RESET = ord("U") << (4 * 2) | 20
+# linux/usbdevice_fs.h equivalents
+# #define USBDEVFS_RESET             _IO('U', 20)
+# Basically we want to send 01010101 00010100
+# ord("U") == 85 == 01010101 which we shift to the left by 8 then add 20 == 00010100
+USBDEVFS_RESET = ord("U") << 8 | 20
+USBDEVFS_DISCONNECT = ord("U") << 8 | 22
+USBDEVFS_CONNECT = ord("U") << 8 | 23
+
+
+def hub_binder(hub_path, action):
+    """
+    bind or unbind a usb hub / controller
+    path: full path to usb hub / controller
+
+    Unbinding / binding is equivalent to a cold restart, but real usb power cannot be cut
+    The device will still get power, but will not be able to talk to the computer
+
+    action: bind|unbind
+    """
+    current_hub = os.path.basename(hub_path)
+    basepath = os.path.dirname(hub_path)
+
+    pci_unbind_path = "/sys/bus/pci/drivers"
+    usb_unbind_path = "/sys/bus/usb/drivers/usb"
+
+    # In case we get a /sys/bus/usb/device instead of a /sys/bus/usb/drivers path
+    if basepath.startswith(pci_unbind_path) or basepath.startswith(usb_unbind_path):
+        unbind_path = basepath
+    else:
+        unbind_path = usb_unbind_path
+
+    print("{} hub {}/{}".format(action, basepath, current_hub))
+    with open(os.path.join(unbind_path, action), "w") as file_handle:
+        file_handle.write(current_hub)
+
+
+def get_usb_hubs(vendor_id=None, product_id=None):
+    """
+    Get physical location of usb hub where given product is plugged in
+    vendor_id and product_id are optional filters
+    """
+
+    hubs = []
+
+    for entry in glob.glob("/sys/bus/usb/devices/**/idVendor"):
+        hub_path = os.path.dirname(entry)
+        abs_hub_path = os.path.abspath(hub_path)
+        vendor_id_file = os.path.join(abs_hub_path, "idVendor")
+        product_id_file = os.path.join(abs_hub_path, "idProduct")
+
+        try:
+            with open(vendor_id_file, "r") as file_handle:
+                found_vendor_id = file_handle.read().strip()
+            with open(product_id_file, "r") as file_handle:
+                found_product_id = file_handle.read().strip()
+
+            if (
+                vendor_id == found_vendor_id
+                and product_id == found_product_id
+                or (not vendor_id and not product_id)
+            ):
+                hubs.append(hub_path)
+        except OSError:
+            print(
+                "Cannot identify which vendor/product is plugged in hub {}".format(
+                    hub_path
+                )
+            )
+
+    return hubs
+
+
+def list_usb_hubs(vendor_id=None, product_id=None):
+    """
+    vendor_id and product_id are optional filters
+    """
+    for hub in get_usb_hubs(vendor_id, product_id):
+        print("Found hub {}".format(hub))
+
+
+def reset_usb_hubs(hubs):
+    for hub in hubs:
+        hub_binder(hub, "unbind")
+        hub_binder(hub, "bind")
 
 
 def reset_usb_controllers():
@@ -54,17 +135,7 @@ def reset_usb_controllers():
     """
 
     USB_CONTROLLER_PATHS = "/sys/bus/pci/drivers/[uoex]hci_hcd/*:*"
-
-    for usb_ctrl in glob.glob(USB_CONTROLLER_PATHS):
-        current_controller = os.path.basename(usb_ctrl)
-        controller_basepath = os.path.dirname(usb_ctrl)
-        print(
-            "Resetting controller {}/{}".format(controller_basepath, current_controller)
-        )
-        with open(os.path.join(controller_basepath, "unbind"), "w") as unbind:
-            unbind.write(current_controller)
-        with open(os.path.join(controller_basepath, "bind"), "w") as bind:
-            bind.write(current_controller)
+    reset_usb_hubs(glob.glob(USB_CONTROLLER_PATHS))
 
 
 def get_usb_devices_paths(vendor_id=None, product_id=None, list_only=False):
@@ -163,27 +234,38 @@ def get_usb_devices_paths(vendor_id=None, product_id=None, list_only=False):
     return device_paths
 
 
-def reset_usb_device(device_path):
+def send_signal_usb_device(device_path, signal):
     # type: (str) -> bool
     """
     Resets a usb device by dending USBDEVFS_RESET IOCTL to device
     Device path is /dev/bus/usb/[bus_number]/[device_number]
     bus_number and device_number are given by lsusb or else
+    signal = reset|connect|disconnect
+
 
     Disclaimer
-    This is a pyusb emulation that doesn't have dependencies but is more messy
+    This is a pyusb emulation that doesn't have dependencies but is more messy, and allows sending disconnect/connect on top of reset commands
     from usb.core import find as finddev
     finddev(idVendor=0x0665, idProduct=0x5161).reset()
     """
 
-    print("Resetting usb device {}".format(device_path))
+    if signal == "reset":
+        sig = USBDEVFS_RESET
+    elif signal == "disconnect":
+        sig = USBDEVFS_DISCONNECT
+    elif signal == "connect":
+        sig = USBDEVFS_CONNECT
+    else:
+        raise TypeError("Bad USB signal given")
+
+    print("Sending signal {} to usb device {}".format(signal, device_path))
     try:
         # Would be easier if os.open would have an __enter__ function for using with context
         fd = os.open(device_path, os.O_WRONLY)
-        fcntl.ioctl(fd, USBDEVFS_RESET, 0)
+        fcntl.ioctl(fd, sig, 0)
         success = True
     except OSError:
-        print("Cannot reset USB device at {}".format(device_path))
+        print("Cannot {} USB device at {}".format(signal, device_path))
         success = False
     finally:
         os.close(fd)
@@ -191,52 +273,148 @@ def reset_usb_device(device_path):
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(
-        prog=__file__, description="USB ports and devices reset tool"
+    description = (
+        "USB hub / controllers & devices reset tool v{}\n"
+        "{}\n"
+        "PRs are welcome - {}\n".format(__version__, __copyright__, __url__)
     )
-
-    parser.add_argument(
-        "-d",
-        "--devices",
-        type=str,
-        required=False,
-        dest="devices",
-        default=None,
-        help="comma separated list of devices to reset, eg: '0123:2345,9876:ABCD'",
-    )
-
-    parser.add_argument(
-        "-r",
-        "--reset",
-        action="store_true",
-        help="Reset all USB controllers",
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=description,
     )
 
     parser.add_argument(
         "-l",
         "--list",
+        dest="list",
         action="store_true",
         help="List USB devices and paths",
     )
 
+    parser.add_argument(
+        "--list-hubs",
+        action="store_true",
+        help="Print a list of detected USB hubs. If --device is given, list only hubs on which device is connected",
+    )
+
+    parser.add_argument(
+        "-d",
+        "--device",
+        type=str,
+        required=False,
+        dest="device",
+        default=None,
+        help="Device for which we want to execute an action. Requires vendor_id:product_id format. Example: 8086:0001",
+    )
+
+    parser.add_argument(
+        "--hub",
+        type=str,
+        required=False,
+        dest="hub",
+        default=None,
+        help="Full path of hub on which to perform hub actions",
+    )
+
+    parser.add_argument(
+        "--reset-device",
+        dest="reset_device",
+        action="store_true",
+        help="Reset device given by --device",
+    )
+
+    parser.add_argument(
+        "--connect-device",
+        dest="connect_device",
+        action="store_true",
+        help="Connect device given by --device",
+    )
+
+    parser.add_argument(
+        "--disconnect-device",
+        dest="disconnect_device",
+        action="store_true",
+        help="Disconnect device given by --device",
+    )
+
+    parser.add_argument(
+        "-r",
+        "--reset-all",
+        dest="reset_all",
+        action="store_true",
+        help="Reset all USB controllers, including their dependent hubs and devices",
+    )
+
+    parser.add_argument(
+        "--reset-hub",
+        dest="reset_hub",
+        action="store_true",
+        help="Reset hubs given by --hub switch, or hubs on which device given by --device is connected",
+    )
+
+    parser.add_argument(
+        "--disable-hub",
+        dest="disable_hub",
+        action="store_true",
+        help="Disable hub given by --hub switch, or hubs on which device given by --device is connected",
+    )
+
+    parser.add_argument(
+        "--enable-hub",
+        dest="enable_hub",
+        action="store_true",
+        help="Enable hub given by --hub switch, or hubs on which device given by --device is connected",
+    )
+
     args = parser.parse_args(args=None if sys.argv[1:] else ["--help"])
 
-    devices = None
-    if args.devices:
-        devices = [device.strip() for device in args.devices.split(",")]
+    device = None
+    vendor_id = None
+    product_id = None
 
-    if args.reset:
+    if args.reset_all:
         reset_usb_controllers()
 
-    if devices:
-        for device in devices:
-            try:
-                vendor_id, product_id = device.split(":")
-                paths = get_usb_devices_paths(vendor_id, product_id)
-                for path in paths:
-                    reset_usb_device(path)
-            except ValueError:
-                print("Bogus device {} given".format(device))
+    if args.device:
+        try:
+            vendor_id, product_id = args.device.split(":")
+        except (TypeError, ValueError):
+            print("Bogus device {} given.".format(args.device))
+            sys.exit(2)
+
+    if (
+        args.reset_device
+        or args.disconnect_device
+        or args.connect_device
+        or args.disable_hub
+        or args.enable_hub
+        or args.reset_hub
+    ):
+        if args.reset_device or args.disconnect_device or args.connect_device:
+            paths = get_usb_devices_paths(vendor_id, product_id)
+            for path in paths:
+                if args.reset_device:
+                    send_signal_usb_device(path, "reset")
+                if args.connect_device:
+                    send_signal_usb_device(path, "connect")
+                if args.disconnect_device:
+                    send_signal_usb_device(path, "disconnect")
+        else:
+            if args.hub:
+                hubs = [args.hub]
+            else:
+                hubs = get_usb_hubs(vendor_id, product_id)
+            if args.disable_hub:
+                for hub in hubs:
+                    hub_binder(hub, "unbind")
+            if args.enable_hub:
+                for hub in hubs:
+                    hub_binder(hub, "bind")
+            if args.reset_hub:
+                reset_usb_hubs(hubs)
 
     if args.list:
         get_usb_devices_paths(list_only=True)
+
+    if args.list_hubs:
+        list_usb_hubs(vendor_id, product_id)
