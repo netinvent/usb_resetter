@@ -6,13 +6,15 @@ small tool to reset USB controllers or devices
 I've had numerous problems with USB devices that simply don't work unless you disconnect / reconnect them.
 While I'd probably like to throw away those devices, sometimes there's no choice than the rejoice of using those devices.
 
-Three solutions:
+A couple solutions:
 
 1. Buy a robot hand that unplugs / plugs the device :) - Nice solution but costly... But again, very nice...
 2. Reset the USB device (works sometimes)
-3. Reset all USB controllers (a bit broad, but works miracles on reluctant devices)
+3. Reset the USB hub where the device is plugged in (is generally sufficient)
+4. Reset all USB controllers (a bit broad, but works miracles on reluctant devices)
+5. Burn the device and promise to buy better hardware (also very nice solution)
 
-I've scripted solutions 2 and 3 in order to achieve what I need into a Python script.
+I've scripted solutions 2 to 4 in order to achieve what I need into a Python script.
 
 ## Setup
 
@@ -40,11 +42,11 @@ Found device 1199:9071 at /dev/bus/usb/002/002 Manufacturer=Sierra Wireless, Inc
 ### Reset a reluctant USB device
 
 ```
-usb_reset.py -d [vendor_id]:[product_id]
+usb_reset.py -d [vendor_id]:[product_id] --reset-device
 ```
 Example:
 ```
-usb_reset.py -d 1199:9071
+usb_reset.py -d 1199:9071 --reset-device
 ```
 
 Result:
@@ -52,15 +54,31 @@ Result:
 Resetting usb device /dev/bus/usb/002/002
 ```
 
+### Reset the USB hub where a device is connected in
+```
+usb_reset.py -d [vendor_id]:[product_id] --reset-hub
+```
+Example:
+```
+usb_reset.py -d 1199:9071 --reset-hub
+```
+
+Result:
+```
+unbind hub /sys/bus/usb/devices/2-4
+bind hub /sys/bus/usb/devices/2-4
+```
+
 
 ### Reset the whole USB controller (usually makes reluctant devices work again)
 ```
-usb_reset --reset
+usb_reset --reset-all
 ```
 
 Result
 ``` 
-Resetting controller /sys/bus/pci/drivers/xhci_hcd/0000:00:14.0
+unbind hub /sys/bus/pci/drivers/xhci_hcd/0000:00:14.0
+bind hub /sys/bus/pci/drivers/xhci_hcd/0000:00:14.0
 ```
 
 Afterwards, all your USB devices should work as if they were just plugged in, since this reset also temporarily cuts power from given USB device, making it reboot.
