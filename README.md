@@ -1,5 +1,5 @@
 # usb_resetter
-small tool to reset USB controllers or devices
+small tool to reset USB controllers, hubs or devices
 
 ## So here we are, with sh*TTY built usb devices, that don't work properly.
 
@@ -18,17 +18,17 @@ I've scripted solutions 2 to 4 in order to achieve what I need into a Python scr
 
 ## Setup
 
-Grab yourself a copy of `usb_reset.py` on the release page or download via
+Grab yourself a copy of `usb_resetter` via pypi with `pip install usb_resetter` or download via
 
 ```
-curl -o /usr/local/bin/usb_reset.py -L https://raw.githubusercontent.com/netinvent/usb_resetter/main/usb_reset.py && chmod +x /usr/local/bin/usb_reset.py
+curl -o /usr/local/bin/usb_resetter -L https://raw.githubusercontent.com/netinvent/usb_resetter/main/usb_resetter/usb_resetter.py && chmod +x /usr/local/bin/usb_resetter
 ```
 
 ## Usage
 
 ### List all USB devices
 ```
-usb_reset.py -l
+usb_resetter -l
 ```
 Result
 ```
@@ -42,11 +42,11 @@ Found device 1199:9071 at /dev/bus/usb/002/002 Manufacturer=Sierra Wireless, Inc
 ### Reset a reluctant USB device
 
 ```
-usb_reset.py -d [vendor_id]:[product_id] --reset-device
+usb_resetter -d [vendor_id]:[product_id] --reset-device
 ```
 Example:
 ```
-usb_reset.py -d 1199:9071 --reset-device
+usb_resetter -d 1199:9071 --reset-device
 ```
 
 Result:
@@ -56,11 +56,11 @@ Resetting usb device /dev/bus/usb/002/002
 
 ### Reset the USB hub where a device is connected in
 ```
-usb_reset.py -d [vendor_id]:[product_id] --reset-hub
+usb_resetter -d [vendor_id]:[product_id] --reset-hub
 ```
 Example:
 ```
-usb_reset.py -d 1199:9071 --reset-hub
+usb_resetter -d 1199:9071 --reset-hub
 ```
 
 Result:
@@ -72,7 +72,7 @@ bind hub /sys/bus/usb/devices/2-4
 
 ### Reset the whole USB controller (usually makes reluctant devices work again)
 ```
-usb_reset --reset-all
+usb_resetter --reset-all
 ```
 
 Result
