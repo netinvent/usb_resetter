@@ -82,3 +82,26 @@ bind hub /sys/bus/pci/drivers/xhci_hcd/0000:00:14.0
 ```
 
 Afterwards, all your USB devices should work as if they were just plugged in, since this reset also temporarily cuts power from given USB device, making it reboot.
+
+## Usual suspect: Cypress Semiconductor USB to Serial UPS
+
+These cheap USB UPS have always the same kind of unreliable USB to serial interface.
+Most of them use `blazer_usb` driver from NUT, and sometimes the driver can't start because it can't communicate with the UPS. Guess why ? No idea.
+
+Unplugging and plugging the USB port usually fixes this, but that's not handy.
+
+A simple USB device reset isn't sufficient for that one.
+
+We'll need to reset the hub it's attached to.
+
+The command for doing so is:
+```
+usb_reset.py --reset-hub --device 0665:5161
+```
+
+While I have a couple of machines running NUT, I modified the nut-driver.service file to automatically reset the device before trying to load the driver:
+
+In `/etc/systemd/system/nut-driver.service` I added line
+```
+ExecStartPre=/usr/local/bin/usb_reset.py --reset-hub --device 0665:5161
+```
