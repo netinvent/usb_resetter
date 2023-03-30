@@ -154,7 +154,11 @@ def get_usb_devices_paths(vendor_id=None, product_id=None, list_only=False):
 
     if not os.path.isfile(kernel_usb_debug_path):
         # We could fallback to lsusb here if available, but then we need command_runner to deal with different subprocess.communicate outputs
-        raise OSError("Kernel path {} not found. Please run this script as root".format(kernel_usb_debug_path))
+        raise OSError(
+            "Kernel path {} not found. Please run this script as root".format(
+                kernel_usb_debug_path
+            )
+        )
 
     with open(kernel_usb_debug_path, "r") as file_handle:
         first_device = True
@@ -430,6 +434,7 @@ def main():
         print("Program failed with error %s" % exc)
         print("Trace:", exc_info=True)
         sys.exit(201)
+
 
 if __name__ == "__main__":
     main()
