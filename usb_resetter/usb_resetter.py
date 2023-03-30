@@ -17,7 +17,7 @@ __author__ = "Orsiris de Jong"
 __copyright__ = "Copyright (C) 2022-2023 Orsiris de Jong - NetInvent SASU"
 __description__ = "USB resetter allows to reset all USB controllers or a single USB device, also emulates lsusb"
 __licence__ = "BSD 3 Clause"
-__version__ = "1.3.0b1"
+__version__ = "1.3.0"
 __build__ = "2023033001"
 __url__ = "https://github.com/netinvent/usb_resetter"
 __compat__ = "python2.7+"
@@ -154,7 +154,7 @@ def get_usb_devices_paths(vendor_id=None, product_id=None, list_only=False):
 
     if not os.path.isfile(kernel_usb_debug_path):
         # We could fallback to lsusb here if available, but then we need command_runner to deal with different subprocess.communicate outputs
-        return device_paths
+        raise OSError("Kernel path {} not found. Please run this script as root".format(kernel_usb_debug_path))
 
     with open(kernel_usb_debug_path, "r") as file_handle:
         first_device = True
@@ -418,7 +418,6 @@ def interface():
 
     if args.list_hubs:
         list_usb_hubs(vendor_id, product_id)
-
 
 
 def main():
