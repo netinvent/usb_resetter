@@ -14,11 +14,11 @@ Versioning semantics:
 
 __intname__ = "usb_resetter"
 __author__ = "Orsiris de Jong"
-__copyright__ = "Copyright (C) 2022 Orsiris de Jong - NetInvent SASU"
+__copyright__ = "Copyright (C) 2022-2023 Orsiris de Jong - NetInvent SASU"
 __description__ = "USB resetter allows to reset all USB controllers or a single USB device, also emulates lsusb"
 __licence__ = "BSD 3 Clause"
-__version__ = "1.2.0"
-__build__ = "2022102801"
+__version__ = "1.3.0b1"
+__build__ = "2023033001"
 __url__ = "https://github.com/netinvent/usb_resetter"
 __compat__ = "python2.7+"
 
@@ -213,7 +213,7 @@ def get_usb_devices_paths(vendor_id=None, product_id=None, list_only=False):
                     else:
                         print(
                             "Device path not existing for bus {} dev {}".format(
-                                possible_bus, possible_dev
+                                bus, dev
                             )
                         )
     # We need to add the final device if exists:
@@ -235,7 +235,7 @@ def get_usb_devices_paths(vendor_id=None, product_id=None, list_only=False):
 
 
 def send_signal_usb_device(device_path, signal):
-    # type: (str) -> bool
+    # type: (str, str) -> bool
     """
     Resets a usb device by dending USBDEVFS_RESET IOCTL to device
     Device path is /dev/bus/usb/[bus_number]/[device_number]
@@ -272,7 +272,7 @@ def send_signal_usb_device(device_path, signal):
     return success
 
 
-if __name__ == "__main__":
+def interface():
     description = (
         "USB hub / controllers & devices reset tool v{}\n"
         "{}\n"
@@ -418,3 +418,19 @@ if __name__ == "__main__":
 
     if args.list_hubs:
         list_usb_hubs(vendor_id, product_id)
+
+
+
+def main():
+    try:
+        interface()
+    except KeyboardInterrupt:
+        print("Program interrupted by CTRL+C")
+        sys.exit(200)
+    except Exception as exc:
+        print("Program failed with error %s" % exc)
+        print("Trace:", exc_info=True)
+        sys.exit(201)
+
+if __name__ == "__main__":
+    main()
