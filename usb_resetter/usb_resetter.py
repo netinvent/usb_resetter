@@ -17,8 +17,8 @@ __author__ = "Orsiris de Jong"
 __copyright__ = "Copyright (C) 2022-2023 Orsiris de Jong - NetInvent SASU"
 __description__ = "USB resetter allows to reset all USB controllers or a single USB device, also emulates lsusb"
 __licence__ = "BSD 3 Clause"
-__version__ = "1.3.0"
-__build__ = "2023033001"
+__version__ = "1.3.1"
+__build__ = "2023040201"
 __url__ = "https://github.com/netinvent/usb_resetter"
 __compat__ = "python2.7+"
 
@@ -27,10 +27,16 @@ from typing import List
 import fcntl
 import re
 import os
+import platform
 import sys
 import glob
 import argparse
 from collections import namedtuple
+
+
+if not "linux" in platform:
+    print("This script can only run on Linux")
+    sys.exit(3)
 
 
 # linux/usbdevice_fs.h equivalents
@@ -40,6 +46,9 @@ from collections import namedtuple
 USBDEVFS_RESET = ord("U") << 8 | 20
 USBDEVFS_DISCONNECT = ord("U") << 8 | 22
 USBDEVFS_CONNECT = ord("U") << 8 | 23
+
+# Glob style path to USB contollers including USB3
+USB_CONTROLLER_PATHS = "/sys/bus/pci/drivers/[uoex]hci_hcd/*:*"
 
 
 def hub_binder(hub_path, action):
@@ -133,8 +142,6 @@ def reset_usb_controllers():
       echo "${i##*/}" > "${i%/*}/bind"
     done
     """
-
-    USB_CONTROLLER_PATHS = "/sys/bus/pci/drivers/[uoex]hci_hcd/*:*"
     reset_usb_hubs(glob.glob(USB_CONTROLLER_PATHS))
 
 
@@ -160,12 +167,13 @@ def get_usb_devices_paths(vendor_id=None, product_id=None, list_only=False):
             )
         )
 
-    with open(kernel_usb_debug_path, "r") as file_handle:
+    with open(kernel_usb_debug_path, "r", encoding="utf-8") as file_handle:
         first_device = True
         manufacturer = None
         product = None
         found_vendor_id = None
         found_product_id = None
+        device_path = None
         while True:
             line = file_handle.readline()
             if not line:
@@ -183,11 +191,6 @@ def get_usb_devices_paths(vendor_id=None, product_id=None, list_only=False):
                             product=product,
                         )
                     )
-                    # print(
-                    #    "Found device {}:{} at {} Manufacturer={} Product={}".format(
-                    #        found_vendor_id, found_product_id, device_path, manufacturer, product
-                    #    )
-                    # )
                 else:
                     first_device = False
                     manufacturer = None
@@ -372,7 +375,6 @@ def interface():
 
     args = parser.parse_args(args=None if sys.argv[1:] else ["--help"])
 
-    device = None
     vendor_id = None
     product_id = None
 
