@@ -111,18 +111,11 @@ setuptools.setup(
     author="NetInvent - Orsiris de Jong",
     author_email="contact@netinvent.fr",
     url="https://github.com/netinvent/udev_monitor",
-    keywords=[
-        "shell",
-        "usb",
-        "reset",
-        "hub",
-        "controller",
-        "plug and pray"
-    ],
+    keywords=["shell", "usb", "reset", "hub", "controller", "plug and pray"],
     long_description=long_description,
     long_description_content_type="text/markdown",
     python_requires=">=3.6",
-        entry_points={
+    entry_points={
         "console_scripts": console_scripts,
     },
 )
