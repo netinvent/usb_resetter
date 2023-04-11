@@ -18,7 +18,7 @@ __copyright__ = "Copyright (C) 2022-2023 Orsiris de Jong - NetInvent SASU"
 __description__ = "USB resetter allows to reset all USB controllers or a single USB device, also emulates lsusb"
 __licence__ = "BSD 3 Clause"
 __version__ = "1.3.1"
-__build__ = "2023040201"
+__build__ = "2023041101"
 __url__ = "https://github.com/netinvent/usb_resetter"
 __compat__ = "python2.7+"
 
@@ -27,14 +27,13 @@ from typing import List
 import fcntl
 import re
 import os
-import platform
 import sys
 import glob
 import argparse
 from collections import namedtuple
 
 
-if not "linux" in platform:
+if not "linux" in sys.platform:
     print("This script can only run on Linux")
     sys.exit(3)
 
