@@ -69,6 +69,14 @@ unbind hub /sys/bus/usb/devices/2-4
 bind hub /sys/bus/usb/devices/2-4
 ```
 
+### Reset hubs without vendor / device ids
+
+You can also reset a hub without knowing the device VID:PID.
+List the hubs and then select the ones to reset
+```
+usb_resetter -l
+usb_resetter --reset-hub --hub /dev/bus/usb/001/002
+```
 
 ### Reset the whole USB controller (usually makes reluctant devices work again)
 ```
