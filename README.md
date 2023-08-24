@@ -104,12 +104,12 @@ We'll need to reset the hub it's attached to.
 
 The command for doing so is:
 ```
-usb_reset.py --reset-hub --device 0665:5161
+usb_resetter --reset-hub --device 0665:5161
 ```
 
 While I have a couple of machines running NUT, I modified the nut-driver.service file to automatically reset the device before trying to load the driver:
 
 In `/etc/systemd/system/nut-driver.service` I added line
 ```
-ExecStartPre=/usr/local/bin/usb_reset.py --reset-hub --device 0665:5161
+ExecStartPre=/usr/local/bin/usb_resetter --reset-hub --device 0665:5161
 ```
